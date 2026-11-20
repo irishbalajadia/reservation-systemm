@@ -115,3 +115,229 @@ class ReservationSystem {
         const index = this.reservations.findIndex(r => r.id === reservationId);
         if (index === -1) return;
     
+const res = this.reservations[index];
+
+        const isSlotStillMine = res.facility.bookedSlots.some(
+            slot => slot.date === res.date && slot.startMins === res.startMins && slot.endMins === res.endMins && slot.label === res.durationLabel
+        );
+
+        if (!isSlotStillMine) {
+            alert("❌ You cannot cancel this reservation. This space is now occupied by another reservation.");
+            return;
+        }
+
+        res.facility.releaseSlot(res.date, res.startMins, res.endMins);
+        this.reservations.splice(index, 1);
+        this.updateUI();
+    }
+
+    populateFormOptions() {
+        const selectElement = document.getElementById('facilitySelect');
+        selectElement.innerHTML = '';
+        this.facilities.forEach(facility => {
+            const option = document.createElement('option');
+            option.value = facility.id;
+            option.textContent = ${facility.name} (${facility.type});
+            selectElement.appendChild(option);
+        });
+    }
+
+    updateUI() {
+        this.renderFacilities();
+        this.renderReservationsTable();
+    }
+
+    setSearchQuery(query) {
+        this.searchQuery = query.toLowerCase();
+        this.renderFacilities();
+    }
+
+    renderFacilities() {
+        const grid = document.getElementById('facilityGrid');
+        grid.innerHTML = '';
+
+        const filteredFacilities = this.facilities.filter(f =>
+            f.name.toLowerCase().includes(this.searchQuery) ||
+            f.type.toLowerCase().includes(this.searchQuery)
+        );
+
+        filteredFacilities.forEach(facility => {
+            const card = document.createElement('div');
+
+            const isBooked = facility.bookedSlots.length > 0;
+            card.className = facility-card ${isBooked ? 'status-booked' : 'status-available'};
+
+            const badgeText = isBooked ? '🔴 Occupied' : '🟢 Available Now';
+
+            let slotsStatusText = '';
+            if (isBooked) {
+                const formattedSchedules = facility.bookedSlots.map(slot => • 📅 ${slot.date}<br>&nbsp;&nbsp;⏱️ ${slot.label});
+                slotsStatusText = <div class="facility-schedule-list"><strong>Schedules:</strong><br>${formattedSchedules.join('<br>')}</div>;
+            }
+
+            let actionButton = '';
+            if (isBooked) {
+                actionButton = <button class="btn-request" data-facility-id="${facility.id}">📩 Submit Request</button>;
+            } else {
+                actionButton = <button class="btn-reserve" data-facility-id="${facility.id}">✅ Reserve Now</button>;
+            }
+
+            card.innerHTML = 
+                <div class="facility-name">${facility.name}</div>
+                <small class="status-badge">${badgeText}</small>
+                ${slotsStatusText}
+                <div class="facility-card-action">
+                    ${actionButton}
+                </div>
+            ;
+            grid.appendChild(card);
+        });
+
+        document.querySelectorAll('.btn-request').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const facilityId = btn.dataset.facilityId;
+                const facility = this.facilities.find(f => f.id === facilityId);
+                alert(📩 You submitted a request for ${facility.name}! \nThe admin will review your request.);
+            });
+        });
+
+        document.querySelectorAll('.btn-reserve').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const facilityId = btn.dataset.facilityId;
+                document.getElementById('facilitySelect').value = facilityId;
+                if (window.innerWidth <= 900) {
+                    document.querySelector('[data-tab="formPanel"]').click();
+                }
+            });
+        });
+    }
+
+    renderReservationsTable() {
+        const tbody = document.getElementById('bookingsTableBody');
+        tbody.innerHTML = '';
+
+if (this.reservations.length === 0) {
+            tbody.innerHTML = <tr><td colspan="5" class="table-empty-state">No active bookings.</td></tr>;
+            return;
+        }
+
+        this.reservations.forEach(res => {
+            const row = document.createElement('tr');
+            row.innerHTML = 
+                <td><strong>${res.facility.name}</strong></td>
+                <td>${res.userName}</td>
+                <td>${res.userRole}</td>
+                <td>
+                    <span class="table-date-badge">📅 ${res.date}</span>
+                    <span class="table-duration-text">⏱️ ${res.durationLabel}</span>
+                </td>
+                <td></td>
+            ;
+
+            const cancelButton = document.createElement('button');
+            cancelButton.className = 'btn-danger';
+            cancelButton.textContent = 'Cancel';
+            cancelButton.addEventListener('click', () => this.cancelReservation(res.id));
+
+            row.cells[row.cells.length - 1].appendChild(cancelButton);
+            tbody.appendChild(row);
+        });
+    }
+}
+
+// 4. APP INITIALIZATION & UI LISTENERS
+const system = new ReservationSystem();
+
+system.addFacility(new Facility('FAC-1', 'Gymnasium', 'Hall'));
+system.addFacility(new Facility('FAC-2', 'Library Study Room', 'Room'));
+system.addFacility(new Facility('FAC-3', 'Computer Lab A', 'Lab'));
+system.addFacility(new Facility('FAC-4', 'Computer Lab B', 'Lab'));
+system.addFacility(new Facility('FAC-5', 'Computer Lab C', 'Lab'));
+system.addFacility(new Facility('FAC-6', 'Computer Lab D', 'Lab'));
+system.addFacility(new Facility('FAC-7', 'Computer Lab E', 'Lab'));
+system.addFacility(new Facility('FAC-8', 'Information Kiosk', 'Space'));
+
+system.populateFormOptions();
+
+const dateField = document.getElementById('reservationDate');
+const today = new Date().toISOString().split('T')[0];
+dateField.value = today;
+dateField.setAttribute('min', today);
+
+system.updateUI();
+
+// Mobile Tab Toggle
+const tabs = document.querySelectorAll('.tab-btn');
+const panels = document.querySelectorAll('.panel');
+
+tabs.forEach(tab => {
+    tab.addEventListener('click', () => {
+        tabs.forEach(t => t.classList.remove('active'));
+        panels.forEach(p => p.classList.remove('active'));
+
+        tab.classList.add('active');
+        const targetPanel = document.getElementById(tab.dataset.tab);
+        if (targetPanel) targetPanel.classList.add('active');
+    });
+});
+
+// Search Filter
+document.getElementById('searchFacility').addEventListener('input', function (e) {
+    system.setSearchQuery(e.target.value);
+});
+
+// Show / Hide Custom Time Fields
+document.getElementById('durationType').addEventListener('change', function () {
+    const customFields = document.getElementById('customTimeFields');
+    if (this.value === "Custom Time Slot") {
+        customFields.style.display = "block";
+        document.getElementById('startTime').required = true;
+        document.getElementById('endTime').required = true;
+    } else {
+        customFields.style.display = "none";
+        document.getElementById('startTime').required = false;
+        document.getElementById('endTime').required = false;
+    }
+});
+
+// Reservation Form Submit
+document.getElementById('reservationForm').addEventListener('submit', function (e) {
+    e.preventDefault();
+
+    const userName = document.getElementById('userName').value;
+    const userRole = document.getElementById('userRole').value;
+    const facilityId = document.getElementById('facilitySelect').value;
+    const date = document.getElementById('reservationDate').value;
+    const durationType = document.getElementById('durationType').value;
+    const customStart = document.getElementById('startTime').value;
+    const customEnd = document.getElementById('endTime').value;
+
+    const result = system.createReservation(facilityId, userName, userRole, date, durationType, customStart, customEnd);
+
+if (result.success) {
+        document.getElementById('userName').value = '';
+        document.getElementById('startTime').value = '';
+        document.getElementById('endTime').value = '';
+        document.getElementById('durationType').value = 'Whole Day';
+        document.getElementById('customTimeFields').style.display = "none";
+
+        if (window.innerWidth <= 900) {
+            document.querySelector('[data-tab="statusPanel"]').click();
+        }
+    } else {
+        alert(result.message);
+    }
+});
+
+// View All Reservations Button
+document.getElementById('viewAllReservationsBtn').addEventListener('click', () => {
+    if (system.reservations.length === 0) {
+        alert("📋 There are no reservations yet.");
+        return;
+    }
+    let list = "📋 ALL RESERVATIONS:\n\n";
+    system.reservations.forEach(r => {
+        list += 🏛️ ${r.facility.name}\n👤 ${r.userName} (${r.userRole})\n📅 ${r.date}\n⏱️ ${r.durationLabel}\n\n;
+    });
+    alert(list);
+});
